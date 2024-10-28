@@ -7,6 +7,7 @@ use App\Http\Resources\PostResource;
 use App\Models\Post;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 
 class PostController extends Controller
 {
@@ -57,5 +58,74 @@ class PostController extends Controller
 
         //return single post as a resource
         return new PostResource(true, 'Data post Detail', $post);
+    }
+
+    public function update(Request $request, $id)
+    {
+        //find post by ID
+        $post = Post::find($id);
+
+        //define validation rules
+        $validator = Validator::make($request->all(), [
+            // 'image' => 'image|mimes:png,jpg,jpeg,gif,svg|max:2048',
+            'title' => 'required',
+            'content' => 'required'
+        ]);
+
+        //check if validation fails
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        //check if image is uploaded
+        if ($request->hasFile('image')) {
+
+            //upload image
+            $image = $request->file('image');
+            $image->storeAs('public/posts', $image->hashName());
+
+            //delete old image
+            Storage::delete('public/posts/' . basename($post->image));
+
+            //update post with new image
+            $post->update([
+                'image' => $image->hashName(),
+                'title' => $request->title,
+                'content' => $request->content
+            ]);
+        } else {
+            //update post without image
+            $post->update([
+                'title' => $request->title,
+                'content' => $request->content
+            ]);
+        }
+
+        //return response
+        return new PostResource(true, 'Data post Updated', $post);
+    }
+
+    public function destroy($id)
+    {
+        //find post by ID
+        $post = Post::find($id);
+
+        //check if post exists
+        // if (!$post) {
+        //     return response()->json(['error' => 'Post not found'], 404);
+        // }
+
+        if ($post === null) {
+            return response()->json(['message' => 'Data sudah terhapus'], 404);
+        }
+
+        //delete image
+        Storage::delete('public/posts/' . basename($post->image));
+
+        //delete post
+        $post->delete();
+
+        //return response
+        return new PostResource(true, 'Data post Deleted', $post);
     }
 }
